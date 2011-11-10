@@ -1,0 +1,174 @@
+/*
+ * Copyright (c) 2011 Moriyoshi Koizumi
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to
+ * deal in the Software without restriction, including without limitation the
+ * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ */
+#ifndef AIRBRAKE_H
+#define AIRBRAKE_H
+
+#include <string.h>
+
+#define AIRBRAKE_VERSION_MAJOR @AIRBRAKE_VERSION_MAJOR@
+#define AIRBRAKE_VERSION_MINOR @AIRBRAKE_VERSION_MINOR@
+#define AIRBRAKE_VERSION_STRING "@AIRBRAKE_VERSION_MAJOR@.@AIRBRAKE_VERSION_MINOR@"
+
+typedef struct airbrake_string_t {
+    char *p;
+    size_t l;
+    size_t al;
+} airbrake_string_t;
+
+typedef struct airbrake_string_table_entry_t airbrake_string_table_entry_t;
+
+struct airbrake_string_table_entry_t {
+    airbrake_string_table_entry_t *next;
+    airbrake_string_table_entry_t *prev;
+    airbrake_string_t key;
+    airbrake_string_t value;
+};
+
+typedef struct airbrake_string_table_t {
+    airbrake_string_table_entry_t *first;
+    airbrake_string_table_entry_t *last;
+} airbrake_string_table_t;
+
+typedef struct airbrake_client_info_t {
+    const char *name;
+    const char *version;
+    const char *url;
+} airbrake_client_info_t;
+
+typedef struct airbrake_backtrace_entry_t airbrake_backtrace_entry_t;
+
+struct airbrake_backtrace_entry_t {
+    airbrake_backtrace_entry_t *next;
+    airbrake_backtrace_entry_t *prev;
+    airbrake_string_t method;
+    airbrake_string_t file;
+    int line;
+};
+
+typedef struct airbrake_backtrace_t {
+    airbrake_backtrace_entry_t *first;
+    airbrake_backtrace_entry_t *last;
+} airbrake_backtrace_t;
+
+typedef struct airbrake_exception_t {
+    airbrake_string_t klass;
+    airbrake_string_t message;
+    airbrake_backtrace_t *backtrace;
+} airbrake_exception_t;
+
+typedef struct airbrake_request_info_t {
+    airbrake_string_t url;
+    airbrake_string_t component;
+    airbrake_string_t action;
+    airbrake_string_table_t params;
+    airbrake_string_table_t session;
+    airbrake_string_table_t cgi_data;
+} airbrake_request_info_t;
+
+typedef struct airbrake_environment_info_t {
+    airbrake_string_t project_root;
+    airbrake_string_t environment_name;
+    airbrake_string_t app_version;
+} airbrake_environment_info_t;
+
+typedef struct airbrake_notice_result_t {
+    airbrake_string_t error_id;
+    airbrake_string_t url;
+    airbrake_string_t id;
+} airbrake_notice_result_t;
+
+typedef struct airbrake_notice_t {
+    const airbrake_exception_t *exception;
+    const airbrake_request_info_t *request;
+    const airbrake_environment_info_t *environment;
+} airbrake_notice_t;
+
+typedef struct airbrake_client_opaque_t airbrake_client_opaque_t;
+
+typedef struct airbrake_client_t {
+    const airbrake_client_info_t *info;
+    airbrake_string_t notice_endpoint;
+    airbrake_string_t api_key;
+    airbrake_client_opaque_t *priv;
+} airbrake_client_t;
+
+typedef enum airbrake_error_t {
+    AIRBRAKE_OK                     = 0,
+    AIRBRAKE_ERROR_UNKNOWN          = 1,
+    AIRBRAKE_ERROR_MEM              = 2,
+    AIRBRAKE_ERROR_NETWORK_FAILURE  = 3,
+    AIRBRAKE_ERROR_INVALID_RESPONSE = 4
+} airbrake_error_t;
+
+airbrake_error_t airbrake_string_init(airbrake_string_t *string, const char *str, size_t str_len);
+airbrake_error_t airbrake_string_init_c(airbrake_string_t *string, const airbrake_string_t *orig);
+airbrake_error_t airbrake_string_grow(airbrake_string_t *string, size_t new_cap);
+airbrake_error_t airbrake_string_append(airbrake_string_t *string, airbrake_string_t other);
+void airbrake_string_fini(airbrake_string_t *string);
+
+static inline airbrake_string_t airbrake_string_static(const char *str, size_t str_len)
+{
+    airbrake_string_t retval = { (char *)str, str_len, 0 };
+    return retval;
+}
+
+static inline airbrake_string_t airbrake_string_static_z(const char *str)
+{
+    return airbrake_string_static(str, strlen(str));
+}
+
+#define AIRBRAKE_STRING_STATIC(s) { s, sizeof(s), 0 }
+
+airbrake_error_t airbrake_string_table_init(airbrake_string_table_t *table);
+void airbrake_string_table_fini(airbrake_string_table_t *table);
+airbrake_error_t airbrake_string_table_add(airbrake_string_table_t *table, airbrake_string_t key, airbrake_string_t value);
+
+airbrake_error_t airbrake_request_info_init(airbrake_request_info_t *request_info, airbrake_string_t url, airbrake_string_t component, airbrake_string_t action);
+void airbrake_request_info_fini(airbrake_request_info_t *request_info);
+
+airbrake_error_t airbrake_environment_info_init(airbrake_environment_info_t *environment_info, airbrake_string_t project_root, airbrake_string_t environment_name, airbrake_string_t app_version);
+void airbrake_environment_info_fini(airbrake_environment_info_t *environment_info);
+
+airbrake_error_t airbrake_exception_init(airbrake_exception_t *exception, airbrake_string_t klass, airbrake_string_t message);
+void airbrake_exception_fini(airbrake_exception_t *exception);
+
+airbrake_error_t airbrake_backtrace_init(airbrake_backtrace_t *backtrace);
+void airbrake_backtrace_fini(airbrake_backtrace_t *backtrace);
+airbrake_error_t airbrake_backtrace_add_entry(airbrake_backtrace_t *backtrace, airbrake_string_t method, airbrake_string_t file, int line);
+
+void airbrake_notice_result_fini(airbrake_notice_result_t *notice_result);
+airbrake_error_t airbrake_notice_result_init(airbrake_notice_result_t *notice_result, airbrake_string_t error_id, airbrake_string_t url, airbrake_string_t id);
+
+airbrake_error_t airbrake_notice_init(airbrake_notice_t *notice);
+void airbrake_notice_fini(airbrake_notice_t *notice);
+
+airbrake_error_t airbrake_client_init(airbrake_client_t *client, const airbrake_client_info_t *info, airbrake_string_t notice_endpoint, airbrake_string_t api_key);
+airbrake_error_t airbrake_client_submit_notice(airbrake_client_t *client, airbrake_notice_result_t *result, const airbrake_notice_t *notice);
+void airbrake_client_fini(airbrake_client_t *client);
+
+void airbrake_init();
+void airbrake_cleanup();
+
+extern airbrake_client_info_t airbrake_default_client_info;
+extern airbrake_string_t airbrake_default_notice_endpoint_url;
+
+#endif /* AIRBRAKE_C_API_H */
