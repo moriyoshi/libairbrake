@@ -54,7 +54,14 @@ static size_t airbrake_curl_writer_func(char *ptr, size_t size, size_t nmemb, ai
 
 airbrake_error_t airbrake_string_init(airbrake_string_t *string, const char *str, size_t str_len)
 {
-    char *p = malloc(str_len + 1);
+    char *p;
+    if (!str) {
+        string->p = 0;
+        string->l = 0;
+        string->al = 0;
+        return AIRBRAKE_OK;
+    }
+    p = malloc(str_len + 1);
     if (!p)
         return AIRBRAKE_ERROR_MEM;
     memmove(p, str, str_len);
@@ -698,31 +705,40 @@ static airbrake_error_t airbrake_client_build_notice_xml_server_environment(cons
     airbrake_error_t err;
 
     err = airbrake_string_append(buf, airbrake_string_static_z(
-          "<server-environment>"
-            "<project-root>"));
-    if (err)
-        return err;
-    err = airbrake_string_append_xml_escape(buf, &environment->project_root);
-    if (err)
-        return err;
+          "<server-environment>"));
+    if (environment->project_root.p) {
+        err = airbrake_string_append(buf, airbrake_string_static_z(
+                "<project-root>"));
+        if (err)
+            return err;
+        err = airbrake_string_append_xml_escape(buf, &environment->project_root);
+        if (err)
+            return err;
+        err = airbrake_string_append(buf, airbrake_string_static_z(
+                "</project-root>"));
+    }
     err = airbrake_string_append(buf, airbrake_string_static_z(
-            "</project-root>"
-            "<environment-name>"));
+        "<environment-name>"));
     if (err)
         return err;
     err = airbrake_string_append_xml_escape(buf, &environment->environment_name);
     if (err)
         return err;
     err = airbrake_string_append(buf, airbrake_string_static_z(
-            "</environment-name>"
-            "<app-version>"));
-    if (err)
-        return err;
-    err = airbrake_string_append_xml_escape(buf, &environment->app_version);
-    if (err)
-        return err;
+            "</environment-name>"));
+
+    if (environment->app_version.p) {
+        err = airbrake_string_append(buf, airbrake_string_static_z(
+                "<app-version>"));
+        if (err)
+            return err;
+        err = airbrake_string_append_xml_escape(buf, &environment->app_version);
+        if (err)
+            return err;
+        err = airbrake_string_append(buf, airbrake_string_static_z(
+                "</app-version>"));
+    }
     err = airbrake_string_append(buf, airbrake_string_static_z(
-            "</app-version>"
           "</server-environment>"));
     return err;
 }
