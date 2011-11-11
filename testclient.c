@@ -53,16 +53,19 @@ airbrake_error_t doit(const char *api_key)
         err = airbrake_backtrace_add_entry(backtrace, airbrake_string_static_z("method1"), airbrake_string_static_z("file.py"), 1);
         if (err) {
             airbrake_backtrace_fini(backtrace);
+            free(backtrace);
             goto out;
         }
         err = airbrake_backtrace_add_entry(backtrace, airbrake_string_static_z("method2"), airbrake_string_static_z("file.py"), 2);
         if (err) {
             airbrake_backtrace_fini(backtrace);
+            free(backtrace);
             goto out;
         }
         err = airbrake_exception_init(&exception, airbrake_string_static_z("SomeClass"), airbrake_string_static_z("some message"));
         if (err) {
             airbrake_backtrace_fini(backtrace);
+            free(backtrace);
             goto out;
         }
         exception.backtrace = backtrace;
