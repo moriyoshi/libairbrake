@@ -673,17 +673,23 @@ static airbrake_error_t airbrake_client_build_notice_xml_request(const airbrake_
     if (err)
         return err;
     err = airbrake_string_append(buf, airbrake_string_static_z(
-            "</component>"
-            "<action>"));
+            "</component>"));
     if (err)
         return err;
-    err = airbrake_string_append_xml_escape(buf, &request->action);
-    if (err)
-        return err;
-    err = airbrake_string_append(buf, airbrake_string_static_z(
-            "</action>"));
-    if (err)
-        return err;
+
+    if (request->action.p) {
+        err = airbrake_string_append(buf, airbrake_string_static_z(
+                "<action>"));
+        if (err)
+            return err;
+        err = airbrake_string_append_xml_escape(buf, &request->action);
+        if (err)
+            return err;
+        err = airbrake_string_append(buf, airbrake_string_static_z(
+                "</action>"));
+        if (err)
+            return err;
+    }
 
     err = airbrake_client_build_notice_xml_params(&request->params, "params", buf);
     if (err)
