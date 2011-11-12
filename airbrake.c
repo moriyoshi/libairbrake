@@ -39,6 +39,8 @@ airbrake_client_info_t airbrake_default_client_info = {
 
 airbrake_string_t airbrake_default_notice_endpoint_url = AIRBRAKE_STRING_STATIC("http://airbrake.io/notifier_api/v2/notices");
 
+airbrake_string_t airbrake_string_null = { 0, 0, 0 };
+
 typedef struct airbrake_curl_writer_t {
     airbrake_string_t *buf;
 } airbrake_curl_writer_t;
