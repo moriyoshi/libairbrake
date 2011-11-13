@@ -811,8 +811,8 @@ airbrake_error_t airbrake_client_submit_notice(airbrake_client_t *client, airbra
         airbrake_curl_writer_t writer = { &out_buf };
         xmlParserCtxtPtr parser = 0;
         xmlDocPtr doc = 0;
-        xmlNodePtr root_node = 0;
         const char *content_type_header_value;
+        long http_status_code;
         airbrake_string_t content_type = { 0, 0, 0 };
         airbrake_string_t charset = { 0, 0, 0 };
 
@@ -826,6 +826,8 @@ airbrake_error_t airbrake_client_submit_notice(airbrake_client_t *client, airbra
             err = AIRBRAKE_ERROR_NETWORK_FAILURE;
             goto out_inner;
         }
+
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_status_code);
         curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &content_type_header_value);
         if (content_type_header_value) {
             do {
@@ -886,36 +888,49 @@ airbrake_error_t airbrake_client_submit_notice(airbrake_client_t *client, airbra
             goto out_inner;
         }
 
-        root_node = xmlDocGetRootElement(doc);
-        if (strcmp(root_node->name, "notice") != 0) {
-            err = AIRBRAKE_ERROR_INVALID_RESPONSE;
-            goto out_inner;
-        }
-        {
-            xmlNodePtr node;
-            for (node = root_node->children; node; node = node->next) {
-                if (node->type != XML_ELEMENT_NODE)
-                    continue;
-                if (strcmp(node->name, "error-id") == 0) {
-                    if (!node->children || node->children->type != XML_TEXT_NODE) {
-                        err = AIRBRAKE_ERROR_INVALID_RESPONSE;
-                        goto out_inner;
+        switch (http_status_code) {
+        case 200:
+            {
+                xmlNodePtr root_node = xmlDocGetRootElement(doc);
+                xmlNodePtr node;
+                if (strcmp(root_node->name, "notice") != 0) {
+                    err = AIRBRAKE_ERROR_INVALID_RESPONSE;
+                    goto out_inner;
+                }
+                for (node = root_node->children; node; node = node->next) {
+                    if (node->type != XML_ELEMENT_NODE)
+                        continue;
+                    if (strcmp(node->name, "error-id") == 0) {
+                        if (!node->children || node->children->type != XML_TEXT_NODE) {
+                            err = AIRBRAKE_ERROR_INVALID_RESPONSE;
+                            goto out_inner;
+                        }
+                        airbrake_string_init(&result->error_id, node->children->content, strlen(node->children->content));
+                    } else if (strcmp(node->name, "url") == 0) {
+                        if (!node->children || node->children->type != XML_TEXT_NODE) {
+                            err = AIRBRAKE_ERROR_INVALID_RESPONSE;
+                            goto out_inner;
+                        }
+                        airbrake_string_init(&result->url, node->children->content, strlen(node->children->content));
+                    } else if (strcmp(node->name, "id") == 0) {
+                        if (!node->children || node->children->type != XML_TEXT_NODE) {
+                            err = AIRBRAKE_ERROR_INVALID_RESPONSE;
+                            goto out_inner;
+                        }
+                        airbrake_string_init(&result->id, node->children->content, strlen(node->children->content));
                     }
-                    airbrake_string_init(&result->error_id, node->children->content, strlen(node->children->content));
-                } else if (strcmp(node->name, "url") == 0) {
-                    if (!node->children || node->children->type != XML_TEXT_NODE) {
-                        err = AIRBRAKE_ERROR_INVALID_RESPONSE;
-                        goto out_inner;
-                    }
-                    airbrake_string_init(&result->url, node->children->content, strlen(node->children->content));
-                } else if (strcmp(node->name, "id") == 0) {
-                    if (!node->children || node->children->type != XML_TEXT_NODE) {
-                        err = AIRBRAKE_ERROR_INVALID_RESPONSE;
-                        goto out_inner;
-                    }
-                    airbrake_string_init(&result->id, node->children->content, strlen(node->children->content));
                 }
             }
+            break;
+        case 403:
+            err = AIRBRAKE_ERROR_SSL_NOT_SUPPORTED;
+            break;
+        case 422:
+            err = AIRBRAKE_ERROR_API_KEY_INVALID;
+            break;
+        case 500:
+            err = AIRBRAKE_ERROR_UNEXPECTED;
+            break;
         }
 
     out_inner:
