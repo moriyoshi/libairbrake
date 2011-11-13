@@ -775,9 +775,11 @@ airbrake_error_t airbrake_client_build_notice_xml(airbrake_client_t *client, air
     if (err)
         return err;
 
-    err = airbrake_client_build_notice_xml_request(notice->request, buf);
-    if (err)
-        return err;
+    if (notice->request) {
+        err = airbrake_client_build_notice_xml_request(notice->request, buf);
+        if (err)
+            return err;
+    }
 
     err = airbrake_client_build_notice_xml_server_environment(notice->environment, buf);
     if (err)
